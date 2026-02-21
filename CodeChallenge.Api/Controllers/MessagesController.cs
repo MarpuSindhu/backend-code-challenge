@@ -8,20 +8,20 @@ namespace CodeChallenge.Api.Controllers;
 [Route("api/v1/organizations/{organizationId}/messages")]
 public class MessagesController : ControllerBase
 {
-    private readonly IMessageRepository _repository;
+    private readonly IMessageLogic _messageLogic;
     private readonly ILogger<MessagesController> _logger;
 
-    public MessagesController(IMessageRepository repository, ILogger<MessagesController> logger)
+    public MessagesController(IMessageLogic messageLogic, ILogger<MessagesController> logger)
     {
-        _repository = repository;
+        _messageLogic = messageLogic;
         _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Message>>> GetAll(Guid organizationId)
+    public async Task<ActionResult<IEnumerable<Message>>> GetAllAsync(Guid organizationId)
     {
         // TODO: Implement
-        var messages = _repository.GetAllByOrganizationAsync(organizationId);
+        var messages = _messageLogic.GetAllMessagesAsync(organizationId);
         return ok(messages):
         throw new NotImplementedException();
     }
@@ -30,29 +30,25 @@ public class MessagesController : ControllerBase
     public async Task<ActionResult<Message>> GetById(Guid organizationId, Guid id)
     {
         // TODO: Implement
-        var message = _repository.GetByIdAsync(organizationId, id);
+        var message = _messageLogic.GetMessageasync(organizationId, id);
         if(message == null){
            return NotFound();
         }
-        return Ok(message);
-        
-        throw new NotImplementedException();
+        return Ok(message):
     }
 
     [HttpPost]
     public async Task<ActionResult<Message>> Create(Guid organizationId, [FromBody] CreateMessageRequest request)
     {
         // TODO: Implement
-        var message = new Message
-        {
-          Id = Guid.NewGuid(),
-          OrganizationId= organizationId,
-          Title= request.Title,
-          Content = request.Content,
-          IsActive = true
-        };
-        var created = _repository.CreateAsync(message):
-        return ok(created);
+        var result = _messageLogic.CreateMessageAsync(organizationId,message):
+        if (result.IsValidationError)
+            return BadRequest(result.Error);
+
+        if (result.IsConflict)
+            return Conflict(result.Error);
+
+        return Created("", null);
         
         
         throw new NotImplementedException();
@@ -62,13 +58,19 @@ public class MessagesController : ControllerBase
     public async Task<ActionResult> Update(Guid organizationId, Guid id, [FromBody] UpdateMessageRequest request)
     {
         // TODO: Implement
-         var existing = _repository.GetIdByAsync(organizationId, id);
-         if (existing == null)
-              return NotFound();
-         existing.Title= request.Title;
-         existing.Content = request.Content;
-         var updated = _repository.UpdateAsync(existing):
-         return Ok(updated);
+         var result  = _messageLogic.UpdateMessageAsync(organizationId, id, request);
+
+        if (result.IsNotFound)
+            return NotFound();
+
+        if (result.IsValidationError)
+            return BadRequest(result.Error);
+
+        if (result.IsConflict)
+            return Conflict(result.Error);
+
+        return NoContent();
+
         
         throw new NotImplementedException();
     }
@@ -77,14 +79,16 @@ public class MessagesController : ControllerBase
     public async Task<ActionResult> Delete(Guid organizationId, Guid id)
     {
         // TODO: Implement
-        var deleted = _repository.DeleteAsync(organizationId, id):
-        if(!deleted){
-          return NotFound();
-          }
-          return Ok(deleted):
+        var result = _messageLogic.DeleteMessageAsync(organizationId, id):
+         if (result.IsNotFound)
+            return NotFound();
+
+        if (result.IsValidationError)
+            return BadRequest(result.Error);
+
+        return NoContent();
           
-        
-        throw new NotImplementedException();
     }
 }
+
 
