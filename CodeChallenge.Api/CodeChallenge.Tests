@@ -1,0 +1,116 @@
+public class MessageLogicTests
+{
+    private readonly Mock<IMessageRepository> _repositoryMock;
+    private readonly MessageLogic _logic;
+
+    public MessageLogicTests()
+    {
+        _repositoryMock = new Mock<IMessageRepository>();
+        _logic = new MessageLogic(_repositoryMock.Object);
+    }
+[Fact]
+public async Task CreateMessage_ShouldReturnSuccess_WhenValid()
+{
+    var organizationId = Guid.NewGuid();
+
+    var request = new CreateMessageRequest
+    {
+        Title = "Test Title",
+        Content = "Valid content"
+    };
+
+    _repositoryMock
+        .Setup(r => r.GetAllByOrganizationAsync(organizationId))
+        .ReturnsAsync(new List<Message>());
+
+    _repositoryMock
+        .Setup(r => r.AddAsync(It.IsAny<Message>()))
+        .Returns(Task.CompletedTask);
+
+    var result = await _logic.CreateMessageAsync(organizationId, request);
+
+    result.IsSuccess.Should().BeTrue();
+}
+
+[Fact]
+public async Task CreateMessage_ShouldReturnConflict_WhenTitleExists()
+{
+    var organizationId = Guid.NewGuid();
+
+    var request = new CreateMessageRequest
+    {
+        Title = "Duplicate",
+        Content = "Valid content"
+    };
+
+    var existingMessages = new List<Message>
+    {
+        new Message { Title = "Duplicate" }
+    };
+
+    _repositoryMock
+        .Setup(r => r.GetAllByOrganizationAsync(organizationId))
+        .ReturnsAsync(existingMessages);
+
+    var result = await _logic.CreateMessageAsync(organizationId, request);
+
+    result.IsConflict.Should().BeTrue();
+}
+[Fact]
+public async Task CreateMessage_ShouldReturnValidationError_WhenContentTooLong()
+{
+    var organizationId = Guid.NewGuid();
+
+    var request = new CreateMessageRequest
+    {
+        Title = "Valid",
+        Content = new string('A', 1000)
+    };
+
+    var result = await _logic.CreateMessageAsync(organizationId, request);
+
+    result.IsValidationError.Should().BeTrue();
+}
+
+[Fact]
+public async Task DeleteMessage_ShouldReturnNotFound_WhenMessageDoesNotExist()
+{
+    var organizationId = Guid.NewGuid();
+    var messageId = Guid.NewGuid();
+
+    _repositoryMock
+        .Setup(r => r.GetIdByAsync(organizationId, messageId))
+        .ReturnsAsync((Message?)null);
+
+    var result = await _logic.DeleteMessageAsync(organizationId, messageId);
+
+    result.IsNotFound.Should().BeTrue();
+}
+[Fact]
+public async Task UpdateMessage_ShouldReturnValidationError_WhenMessageIsInactive()
+{
+    var organizationId = Guid.NewGuid();
+    var messageId = Guid.NewGuid();
+
+    var inactiveMessage = new Message
+    {
+        Id = messageId,
+        IsActive = false
+    };
+
+    _repositoryMock
+        .Setup(r => r.GetIdByAsync(organizationId, messageId))
+        .ReturnsAsync(inactiveMessage);
+
+    var request = new UpdateMessageRequest
+    {
+        Title = "Updated",
+        Content = "Updated content"
+    };
+
+    var result = await _logic.UpdateMessageAsync(organizationId, messageId, request);
+
+    result.IsValidationError.Should().BeTrue();
+}
+
+}
